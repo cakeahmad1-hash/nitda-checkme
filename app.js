@@ -56,7 +56,39 @@ app.get("/guest", (req, res) => {
           }
         );
       } else {
-        res.sendFile(path.join(__dirname, "public", "visitor-form.html"));
+        // Person has cookie but is checked OUT - auto check them in again
+        db.get(
+          `SELECT * FROM visitors WHERE id = ? ORDER BY checkIn DESC LIMIT 1`,
+          [visitorId],
+          (err3, lastVisit) => {
+            if (err3 || !lastVisit) {
+              return res.sendFile(path.join(__dirname, "public", "visitor-form.html"));
+            }
+            
+            // Auto check-in using previous information
+            const now = new Date();
+            const timeString = now.toLocaleString();
+            
+            db.run(
+              `INSERT INTO visitors (id, fullName, laptopBrand, macAddress, eventName, checkIn, status)
+               VALUES (?, ?, ?, ?, ?, ?, 'IN')`,
+              [visitorId, lastVisit.fullName, lastVisit.laptopBrand, lastVisit.macAddress, lastVisit.eventName || "Default", timeString],
+              (err4) => {
+                if (err4) return res.send("❌ Error checking in.");
+                res.send(`
+                  <html>
+                    <body style="font-family:Arial;text-align:center;padding:40px;">
+                      <h2>✅ Welcome back, ${lastVisit.fullName}!</h2>
+                      <p>You've been automatically checked in.</p>
+                      <p>Time: <b>${timeString}</b></p>
+                      <p><a href="/">Go Home</a></p>
+                    </body>
+                  </html>
+                `);
+              }
+            );
+          }
+        );
       }
     }
   );
