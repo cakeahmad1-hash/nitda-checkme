@@ -25,6 +25,41 @@ app.get("/guest", (req, res) => {
     return res.sendFile(path.join(__dirname, "public", "visitor-form.html"));
   }
 
+  // If visitor has cookie, show QR scanner instead of auto check-in/out
+  res.sendFile(path.join(__dirname, "public", "qr-scanner.html"));
+});
+
+// --------- Gate Scan Route (triggered by QR scan) ---------
+app.get("/gate-scan", (req, res) => {
+  const visitorId = req.cookies.visitorId;
+  const token = req.query.token;
+
+  // Verify the gate token (simple verification)
+  if (token !== "GATE2024") {
+    return res.send(`
+      <html>
+        <body style="font-family:Arial;text-align:center;padding:40px;">
+          <h2>❌ Invalid QR Code</h2>
+          <p>Please scan the official gate QR code.</p>
+          <p><a href="/guest">Try Again</a></p>
+        </body>
+      </html>
+    `);
+  }
+
+  if (!visitorId) {
+    return res.send(`
+      <html>
+        <body style="font-family:Arial;text-align:center;padding:40px;">
+          <h2>⚠️ Not Registered</h2>
+          <p>Please register first by filling the form.</p>
+          <p><a href="/guest">Register Now</a></p>
+        </body>
+      </html>
+    `);
+  }
+
+  // Check if visitor is currently IN or OUT
   db.get(
     `SELECT * FROM visitors WHERE visitorId = ? AND status = 'IN' ORDER BY checkIn DESC LIMIT 1`,
     [visitorId],
@@ -32,6 +67,7 @@ app.get("/guest", (req, res) => {
       if (err) return res.send("❌ Database error.");
 
       if (row) {
+        // Visitor is IN, so CHECK OUT
         const checkOutTime = new Date();
         const durationMs = checkOutTime - new Date(row.checkIn);
         const durationMins = Math.floor(durationMs / 60000);
@@ -46,26 +82,25 @@ app.get("/guest", (req, res) => {
             res.send(`
               <html>
                 <body style="font-family:Arial;text-align:center;padding:40px;">
-                  <h2>👋 Welcome back!</h2>
-                  <p>You've been automatically checked out.</p>
+                  <h2>👋 Checked Out Successfully!</h2>
                   <p>Duration: <b>${duration}</b></p>
-                  <p><a href="/">Go Home</a></p>
+                  <p>Time: <b>${checkOutTime.toLocaleString()}</b></p>
+                  <p><a href="/">Go Home</a> | <a href="/guest">Scan Again</a></p>
                 </body>
               </html>
             `);
           }
         );
       } else {
-        // Person has cookie but is checked OUT - auto check them in again
+        // Visitor is OUT, so CHECK IN
         db.get(
           `SELECT * FROM visitors WHERE visitorId = ? ORDER BY checkIn DESC LIMIT 1`,
           [visitorId],
           (err3, lastVisit) => {
             if (err3 || !lastVisit) {
-              return res.sendFile(path.join(__dirname, "public", "visitor-form.html"));
+              return res.send("❌ Error retrieving visitor information.");
             }
             
-            // Auto check-in using previous information
             const now = new Date();
             const timeString = now.toLocaleString();
             
@@ -78,10 +113,10 @@ app.get("/guest", (req, res) => {
                 res.send(`
                   <html>
                     <body style="font-family:Arial;text-align:center;padding:40px;">
-                      <h2>✅ Welcome back, ${lastVisit.fullName}!</h2>
-                      <p>You've been automatically checked in.</p>
+                      <h2>✅ Checked In Successfully!</h2>
+                      <p>Welcome back, <b>${lastVisit.fullName}</b>!</p>
                       <p>Time: <b>${timeString}</b></p>
-                      <p><a href="/">Go Home</a></p>
+                      <p><a href="/">Go Home</a> | <a href="/guest">Scan Again</a></p>
                     </body>
                   </html>
                 `);
@@ -253,14 +288,19 @@ app.post("/create-event", (req, res) => {
 
 app.get("/qr", async (req, res) => {
   try {
-    const formURL = `http://${req.headers.host}/guest`;
-    const qrImage = await QRCode.toDataURL(formURL);
+    const gateURL = `http://${req.headers.host}/gate-scan?token=GATE2024`;
+    const qrImage = await QRCode.toDataURL(gateURL);
     res.send(`
       <html>
         <body style="font-family:Arial;text-align:center;padding:40px;">
-          <h2>Scan to open NITDA CheckMe (Gate)</h2>
-          <img src="${qrImage}" />
-          <p><a href="${formURL}">${formURL}</a></p>
+          <h2>🚪 Gate QR Code</h2>
+          <p>Place this QR code at the gate entrance</p>
+          <p>Visitors will scan this to check in/out</p>
+          <img src="${qrImage}" style="margin:20px 0;" />
+          <p style="font-size:12px; color:#666;">
+            <a href="${gateURL}">${gateURL}</a>
+          </p>
+          <p><a href="/admin">Back to Admin</a></p>
         </body>
       </html>
     `);
