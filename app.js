@@ -45,7 +45,7 @@ app.get("/guest", (req, res) => {
 
         db.run(
           `UPDATE visitors SET checkOut = ?, duration = ?, status = 'OUT' WHERE id = ? AND status = 'IN'`,
-          [checkOutTime.toLocaleString(), duration, visitorId],
+          [checkOutTime.toISOString(), duration, visitorId],
           (err2) => {
             if (err2) {
               console.error(err2);
@@ -55,11 +55,24 @@ app.get("/guest", (req, res) => {
             // Show auto-checkout success message
             res.send(`
               <html>
-                <body style="font-family:Arial;text-align:center;padding:40px;">
-                  <h2>👋 Goodbye!</h2>
-                  <p>You've been automatically checked <b>OUT</b>.</p>
-                  <p>Duration: <b>${duration}</b></p>
-                  <p><a href="/guest">Enter again?</a> | <a href="/">Home</a></p>
+                <head>
+                  <title>Checked Out - NITDA</title>
+                  <style>
+                    body { font-family: Arial; text-align: center; padding: 40px; background: #f5f5f5; }
+                    .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
+                    .btn { display: inline-block; margin: 10px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; }
+                  </style>
+                </head>
+                <body>
+                  <div class="container">
+                    <h2>👋 Goodbye!</h2>
+                    <p>You've been automatically checked <b>OUT</b>.</p>
+                    <p>Duration: <b>${duration}</b></p>
+                    <div>
+                      <a href="/guest" class="btn">Enter Again</a>
+                      <a href="/" class="btn">Home</a>
+                    </div>
+                  </div>
                 </body>
               </html>
             `);
@@ -68,21 +81,98 @@ app.get("/guest", (req, res) => {
       } else {
         // Currently OUT or no record → auto checkin
         const now = new Date();
-        const timeString = now.toLocaleString();
+        const timeString = now.toISOString();
         
-        // Get the last used details for auto-fill
+        // Get the last used details
         db.get(
           `SELECT fullName, laptopBrand, macAddress FROM visitors WHERE id = ? ORDER BY checkIn DESC LIMIT 1`,
           [visitorId],
           (err3, lastVisit) => {
             if (err3) {
               console.error(err3);
-              // Continue with auto checkin without details
-              return performAutoCheckIn(visitorId, timeString, null, res);
+              // Auto checkin with default details
+              db.run(
+                `INSERT INTO visitors (id, fullName, laptopBrand, macAddress, eventName, checkIn, status)
+                 VALUES (?, ?, ?, ?, ?, ?, 'IN')`,
+                [visitorId, "Returning Visitor", "Previous Device", "Auto MAC", "Automatic Check-in", timeString],
+                (err) => {
+                  if (err) {
+                    console.error(err);
+                    return res.send("❌ Error during auto check-in.");
+                  }
+                  
+                  res.send(`
+                    <html>
+                      <head>
+                        <title>Checked In - NITDA</title>
+                        <style>
+                          body { font-family: Arial; text-align: center; padding: 40px; background: #f5f5f5; }
+                          .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
+                          .btn { display: inline-block; margin: 10px; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; }
+                        </style>
+                      </head>
+                      <body>
+                        <div class="container">
+                          <h2>✅ Welcome Back!</h2>
+                          <p>You've been automatically checked <b>IN</b>.</p>
+                          <p>Time: <b>${new Date(timeString).toLocaleString()}</b></p>
+                          <p>Event: <b>Automatic Check-in</b></p>
+                          <div>
+                            <a href="/guest" class="btn">Leave Again</a>
+                            <a href="/" class="btn">Home</a>
+                          </div>
+                        </div>
+                      </body>
+                    </html>
+                  `);
+                }
+              );
+            } else {
+              // Auto checkin with last known details
+              db.run(
+                `INSERT INTO visitors (id, fullName, laptopBrand, macAddress, eventName, checkIn, status)
+                 VALUES (?, ?, ?, ?, ?, ?, 'IN')`,
+                [
+                  visitorId, 
+                  lastVisit.fullName || "Returning Visitor",
+                  lastVisit.laptopBrand || "Previous Device", 
+                  lastVisit.macAddress || "Auto MAC",
+                  "Automatic Check-in", 
+                  timeString
+                ],
+                (err) => {
+                  if (err) {
+                    console.error(err);
+                    return res.send("❌ Error during auto check-in.");
+                  }
+                  
+                  res.send(`
+                    <html>
+                      <head>
+                        <title>Checked In - NITDA</title>
+                        <style>
+                          body { font-family: Arial; text-align: center; padding: 40px; background: #f5f5f5; }
+                          .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
+                          .btn { display: inline-block; margin: 10px; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; }
+                        </style>
+                      </head>
+                      <body>
+                        <div class="container">
+                          <h2>✅ Welcome Back!</h2>
+                          <p>You've been automatically checked <b>IN</b>.</p>
+                          <p>Time: <b>${new Date(timeString).toLocaleString()}</b></p>
+                          <p>Event: <b>Automatic Check-in</b></p>
+                          <div>
+                            <a href="/guest" class="btn">Leave Again</a>
+                            <a href="/" class="btn">Home</a>
+                          </div>
+                        </div>
+                      </body>
+                    </html>
+                  `);
+                }
+              );
             }
-
-            // Auto checkin with last known details
-            performAutoCheckIn(visitorId, timeString, lastVisit, res);
           }
         );
       }
@@ -90,64 +180,46 @@ app.get("/guest", (req, res) => {
   );
 });
 
-// Helper function for auto checkin
-function performAutoCheckIn(visitorId, timeString, lastVisit, res) {
-  const defaultEvent = "Automatic Check-in";
-  
-  db.run(
-    `INSERT INTO visitors (id, fullName, laptopBrand, macAddress, eventName, checkIn, status)
-     VALUES (?, ?, ?, ?, ?, ?, 'IN')`,
-    [
-      visitorId, 
-      lastVisit ? lastVisit.fullName : "Auto Visitor",
-      lastVisit ? lastVisit.laptopBrand : "Auto Device", 
-      lastVisit ? lastVisit.macAddress : "Auto MAC",
-      defaultEvent, 
-      timeString
-    ],
-    (err) => {
-      if (err) {
-        console.error(err);
-        return res.send("❌ Error during auto check-in.");
-      }
-      
-      res.send(`
-        <html>
-          <body style="font-family:Arial;text-align:center;padding:40px;">
-            <h2>✅ Welcome Back!</h2>
-            <p>You've been automatically checked <b>IN</b>.</p>
-            <p>Time: <b>${timeString}</b></p>
-            <p>Event: <b>Automatic Check-in</b></p>
-            <p><a href="/guest">Leave again?</a> | <a href="/">Home</a></p>
-          </body>
-        </html>
-      `);
-    }
-  );
-}
-
 // --------- Handle visitor form submission ---------
 app.post("/submit", (req, res) => {
   const { fullName, laptopBrand, macAddress, allowCookies, eventName } = req.body;
   if (!allowCookies) return res.send("❌ You must allow cookies before submitting.");
 
   const now = new Date();
-  const timeString = now.toLocaleString();
+  const timeString = now.toISOString();
 
   if (req.cookies.visitorId) {
+    // Returning visitor filling form again
     const visitorId = req.cookies.visitorId;
-
-    // For returning visitors, just create a new check-in record
+    
     db.run(
       `INSERT INTO visitors (id, fullName, laptopBrand, macAddress, eventName, checkIn, status)
        VALUES (?, ?, ?, ?, ?, ?, 'IN')`,
       [visitorId, fullName, laptopBrand, macAddress, eventName || "Manual Check-in", timeString],
-      (err) => {
+      function(err) {
         if (err) {
-          console.error(err);
-          return res.send("❌ Error saving check-in.");
+          console.error("Database error:", err);
+          return res.send(`
+            <html>
+              <body style="font-family: Arial; text-align: center; padding: 40px;">
+                <h2>❌ Error</h2>
+                <p>There was an error checking you in.</p>
+                <p>Please scan the QR code instead of filling the form for faster check-in/out.</p>
+                <p><a href="/guest">Try QR Code</a> | <a href="/">Home</a></p>
+              </body>
+            </html>
+          `);
         }
-        res.send("✅ Welcome back! You are now checked IN.");
+        res.send(`
+          <html>
+            <body style="font-family: Arial; text-align: center; padding: 40px;">
+              <h2>✅ Checked In</h2>
+              <p>Welcome back! You are now checked IN.</p>
+              <p>Next time, just scan the QR code for automatic check-in/out.</p>
+              <p><a href="/guest">Leave</a> | <a href="/">Home</a></p>
+            </body>
+          </html>
+        `);
       }
     );
   } else {
@@ -157,14 +229,23 @@ app.post("/submit", (req, res) => {
     db.run(
       `INSERT INTO visitors (id, fullName, laptopBrand, macAddress, eventName, checkIn, status)
        VALUES (?, ?, ?, ?, ?, ?, 'IN')`,
-      [visitorId, fullName, laptopBrand, macAddress, eventName || "Default", timeString],
-      (err) => {
+      [visitorId, fullName, laptopBrand, macAddress, eventName || "First Visit", timeString],
+      function(err) {
         if (err) {
-          console.error(err);
-          return res.send("❌ Error saving new visitor.");
+          console.error("Database error:", err);
+          return res.send("❌ Error saving your information. Please try again.");
         }
         res.cookie("visitorId", visitorId, { maxAge: 365 * 24 * 60 * 60 * 1000, httpOnly: true });
-        res.send("✅ You're checked in successfully! (Cookie saved for next time)");
+        res.send(`
+          <html>
+            <body style="font-family: Arial; text-align: center; padding: 40px;">
+              <h2>✅ Checked In Successfully!</h2>
+              <p>Cookie saved for next time.</p>
+              <p>Next time, just scan the QR code for automatic check-in/out.</p>
+              <p><a href="/guest">Test Auto Check-out</a> | <a href="/">Home</a></p>
+            </body>
+          </html>
+        `);
       }
     );
   }
@@ -208,8 +289,8 @@ app.get("/admin", (req, res) => {
         <td>${v.laptopBrand || "-"}</td>
         <td>${v.macAddress || "-"}</td>
         <td>${v.eventName || "-"}</td>
-        <td>${v.checkIn || "-"}</td>
-        <td>${v.checkOut || "-"}</td>
+        <td>${v.checkIn ? new Date(v.checkIn).toLocaleString() : "-"}</td>
+        <td>${v.checkOut ? new Date(v.checkOut).toLocaleString() : "-"}</td>
         <td>${v.duration || "-"}</td>
         <td>${v.status || "-"}</td>
       </tr>`
@@ -257,7 +338,7 @@ app.get("/create-event", (req, res) => {
 app.post("/create-event", (req, res) => {
   if (!req.cookies.admin) return res.redirect("/admin-login");
   const { eventName } = req.body;
-  const now = new Date().toLocaleString();
+  const now = new Date().toISOString();
 
   db.run("INSERT INTO events (name, createdAt) VALUES (?, ?)", [eventName, now], function (err) {
     if (err) {
@@ -326,33 +407,6 @@ db.serialize(() => {
     )
   `);
 });
-
-// ----------------- Auto-reset at midnight -----------------
-function autoReset() {
-  const now = new Date();
-  const msUntilMidnight =
-    new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5) - now;
-
-  setTimeout(() => {
-    const endTime = new Date().toLocaleString();
-    db.all("SELECT * FROM visitors WHERE status = 'IN'", (err, rows) => {
-      if (!err && rows.length) {
-        rows.forEach((v) => {
-          const durationMs = new Date() - new Date(v.checkIn);
-          const durationMins = Math.floor(durationMs / 60000);
-          const duration = `${durationMins} mins`;
-          db.run(
-            `UPDATE visitors SET checkOut = ?, duration = ?, status = 'OUT' WHERE id = ? AND status = 'IN'`,
-            [endTime + " (Auto Day End)", duration, v.id]
-          );
-        });
-      }
-    });
-    console.log("🌙 Auto-reset done for the day!");
-    autoReset(); // schedule for next day
-  }, msUntilMidnight);
-}
-autoReset();
 
 // ----------------- Start Server -----------------
 app.listen(port, () => {
