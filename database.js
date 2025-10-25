@@ -1,12 +1,18 @@
 // database.js
 const sqlite3 = require("sqlite3").verbose();
-const db = new sqlite3.Database("./nitda-checkme.db");
+const { open } = require("sqlite");
 
-db.serialize(() => {
-  db.run(`
+async function init() {
+  const db = await open({
+    filename: "./nitda-checkme.db",
+    driver: sqlite3.Database,
+  });
+
+  // Create visitors table if it doesn't exist
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS visitors (
-      recordId INTEGER PRIMARY KEY AUTOINCREMENT,
-      id TEXT,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      visitorId TEXT,
       fullName TEXT,
       laptopBrand TEXT,
       macAddress TEXT,
@@ -17,6 +23,8 @@ db.serialize(() => {
       status TEXT
     )
   `);
-});
 
-module.exports = db;
+  return db;
+}
+
+module.exports = init();
