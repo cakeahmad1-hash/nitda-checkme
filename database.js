@@ -12,14 +12,11 @@ async function init() {
   await db.exec(`
     CREATE TABLE IF NOT EXISTS visitors (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      visitorId TEXT,
-      fullName TEXT,
-      laptopBrand TEXT,
-      macAddress TEXT,
-      eventName TEXT,
-      checkIn TEXT,
-      checkOut TEXT,
-      duration TEXT,
+      name TEXT,
+      department TEXT,
+      purpose TEXT,
+      checkin_time TEXT,
+      checkout_time TEXT,
       status TEXT
     )
   `);
