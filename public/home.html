@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NITDA CheckMe</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <style>
+        body { 
+            font-family: 'Arial', sans-serif; 
+            text-align: center; 
+            padding: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .btn { 
+            display: block; 
+            margin: 20px auto; 
+            padding: 15px 25px; 
+            width: 250px; 
+            background: rgba(255,255,255,0.2); 
+            color: white; 
+            text-decoration: none;
+            border-radius: 10px;
+            border: 2px solid white;
+            transition: all 0.3s ease;
+            font-size: 18px;
+        }
+        .btn:hover {
+            background: white;
+            color: #667eea;
+            transform: translateY(-5px);
+        }
+        .icon {
+            margin-right: 10px;
+        }
+        .container {
+            background: rgba(255,255,255,0.1);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container animate__animated animate__fadeIn">
+        <h1 class="animate__animated animate__bounce">
+            <i class="fas fa-building icon"></i> NITDA CheckMe
+        </h1>
+        <p class="animate__animated animate__fadeIn animate__delay-1s">
+            Visitor Management System
+        </p>
+        
+        <div class="animate__animated animate__fadeInUp animate__delay-2s">
+            <a href="/guest" class="btn">
+                <i class="fas fa-user-check icon"></i> Visitor Check-In
+            </a>
+            <a href="/admin-login" class="btn">
+                <i class="fas fa-lock icon"></i> Admin Login
+            </a>
+            <a href="/qr" class="btn">
+                <i class="fas fa-qrcode icon"></i> Gate QR Code
+            </a>
+        </div>
+    </div>
+</body>
+</html>
