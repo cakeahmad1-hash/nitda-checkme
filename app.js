@@ -5,7 +5,7 @@ const db = require("./database");
 const path = require("path");
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5000;
 
 // Middleware
 app.use(express.urlencoded({ extended: true }));
@@ -22,7 +22,7 @@ app.get("/guest", (req, res) => {
   const visitorId = req.cookies.visitorId;
 
   if (!visitorId) {
-    return res.sendFile(path.join(__dirname, "public", "index.html"));
+    return res.sendFile(path.join(__dirname, "public", "visitor-form.html"));
   }
 
   db.get(
@@ -56,7 +56,7 @@ app.get("/guest", (req, res) => {
           }
         );
       } else {
-        res.sendFile(path.join(__dirname, "public", "index.html"));
+        res.sendFile(path.join(__dirname, "public", "visitor-form.html"));
       }
     }
   );
@@ -263,6 +263,6 @@ db.serialize(() => {
 });
 
 // --------- Start Server ---------
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   console.log(`🚀 NITDA CheckMe running on port ${port}`);
 });
