@@ -26,7 +26,7 @@ app.get("/guest", (req, res) => {
   }
 
   db.get(
-    `SELECT * FROM visitors WHERE id = ? AND status = 'IN' ORDER BY checkIn DESC LIMIT 1`,
+    `SELECT * FROM visitors WHERE visitorId = ? AND status = 'IN' ORDER BY checkIn DESC LIMIT 1`,
     [visitorId],
     (err, row) => {
       if (err) return res.send("❌ Database error.");
@@ -38,7 +38,7 @@ app.get("/guest", (req, res) => {
         const duration = `${durationMins} mins`;
 
         db.run(
-          `UPDATE visitors SET checkOut = ?, duration = ?, status = 'OUT' WHERE id = ? AND status = 'IN'`,
+          `UPDATE visitors SET checkOut = ?, duration = ?, status = 'OUT' WHERE visitorId = ? AND status = 'IN'`,
           [checkOutTime.toLocaleString(), duration, visitorId],
           (err2) => {
             if (err2) return res.send("❌ Error updating checkout.");
@@ -58,7 +58,7 @@ app.get("/guest", (req, res) => {
       } else {
         // Person has cookie but is checked OUT - auto check them in again
         db.get(
-          `SELECT * FROM visitors WHERE id = ? ORDER BY checkIn DESC LIMIT 1`,
+          `SELECT * FROM visitors WHERE visitorId = ? ORDER BY checkIn DESC LIMIT 1`,
           [visitorId],
           (err3, lastVisit) => {
             if (err3 || !lastVisit) {
@@ -70,7 +70,7 @@ app.get("/guest", (req, res) => {
             const timeString = now.toLocaleString();
             
             db.run(
-              `INSERT INTO visitors (id, fullName, laptopBrand, macAddress, eventName, checkIn, status)
+              `INSERT INTO visitors (visitorId, fullName, laptopBrand, macAddress, eventName, checkIn, status)
                VALUES (?, ?, ?, ?, ?, ?, 'IN')`,
               [visitorId, lastVisit.fullName, lastVisit.laptopBrand, lastVisit.macAddress, lastVisit.eventName || "Default", timeString],
               (err4) => {
@@ -105,7 +105,7 @@ app.post("/submit", (req, res) => {
   if (req.cookies.visitorId) {
     const visitorId = req.cookies.visitorId;
     db.get(
-      `SELECT * FROM visitors WHERE id = ? AND status = 'IN' ORDER BY checkIn DESC LIMIT 1`,
+      `SELECT * FROM visitors WHERE visitorId = ? AND status = 'IN' ORDER BY checkIn DESC LIMIT 1`,
       [visitorId],
       (err, row) => {
         if (err) return res.send("❌ Database error.");
@@ -117,7 +117,7 @@ app.post("/submit", (req, res) => {
           const duration = `${durationMins} mins`;
 
           db.run(
-            `UPDATE visitors SET checkOut = ?, duration = ?, status = 'OUT' WHERE id = ? AND status = 'IN'`,
+            `UPDATE visitors SET checkOut = ?, duration = ?, status = 'OUT' WHERE visitorId = ? AND status = 'IN'`,
             [checkOutTime.toLocaleString(), duration, visitorId],
             (err2) => {
               if (err2) return res.send("❌ Error updating checkout.");
@@ -126,7 +126,7 @@ app.post("/submit", (req, res) => {
           );
         } else {
           db.run(
-            `INSERT INTO visitors (id, fullName, laptopBrand, macAddress, eventName, checkIn, status)
+            `INSERT INTO visitors (visitorId, fullName, laptopBrand, macAddress, eventName, checkIn, status)
              VALUES (?, ?, ?, ?, ?, ?, 'IN')`,
             [visitorId, fullName, laptopBrand, macAddress, eventName || "Default", timeString],
             (err3) => {
@@ -140,7 +140,7 @@ app.post("/submit", (req, res) => {
   } else {
     const visitorId = Date.now().toString();
     db.run(
-      `INSERT INTO visitors (id, fullName, laptopBrand, macAddress, eventName, checkIn, status)
+      `INSERT INTO visitors (visitorId, fullName, laptopBrand, macAddress, eventName, checkIn, status)
        VALUES (?, ?, ?, ?, ?, ?, 'IN')`,
       [visitorId, fullName, laptopBrand, macAddress, eventName || "Default", timeString],
       (err) => {
@@ -273,7 +273,8 @@ app.get("/qr", async (req, res) => {
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS visitors (
-      id TEXT PRIMARY KEY,
+      recordId INTEGER PRIMARY KEY AUTOINCREMENT,
+      visitorId TEXT,
       fullName TEXT,
       laptopBrand TEXT,
       macAddress TEXT,
