@@ -1,7 +1,7 @@
 {
   "name": "nitda-checkme",
   "version": "1.0.0",
-  "description": "Visitor Management System for NITDA",
+  "description": "NITDA Visitor Management System",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
@@ -12,5 +12,8 @@
     "cookie-parser": "^1.4.6",
     "qrcode": "^1.5.3",
     "sqlite3": "^5.1.6"
-  }
+  },
+  "keywords": ["visitor", "management", "checkin", "nitda"],
+  "author": "NITDA",
+  "license": "MIT"
 }
