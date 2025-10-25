@@ -172,7 +172,7 @@ app.post("/submit", (req, res) => {
 
 // --------- Admin Login ---------
 app.get("/admin-login", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "admin-login.html"));
+  res.sendFile(path.join(__dirname, "admin-login.html"));
 });
 
 app.post("/admin-login", (req, res) => {
@@ -251,7 +251,7 @@ app.get("/admin", (req, res) => {
 // --------- Create Event ---------
 app.get("/create-event", (req, res) => {
   if (!req.cookies.admin) return res.redirect("/admin-login");
-  res.sendFile(path.join(__dirname, "public", "create-event.html"));
+  res.sendFile(path.join(__dirname, "create-event.html"));
 });
 
 app.post("/create-event", (req, res) => {
