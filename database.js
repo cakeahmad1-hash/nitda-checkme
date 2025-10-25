@@ -1,27 +1,31 @@
 // database.js
 const sqlite3 = require("sqlite3").verbose();
-const { open } = require("sqlite");
+const path = require("path");
 
-async function init() {
-  const db = await open({
-    filename: "./nitda-checkme.db",
-    driver: sqlite3.Database,
-  });
+// Create or open the database file
+const db = new sqlite3.Database(path.join(__dirname, "nitda-checkme.db"), (err) => {
+  if (err) {
+    console.error("❌ Failed to connect to database:", err);
+  } else {
+    console.log("✅ Connected to NITDA CheckMe database");
+  }
+});
 
-  // Create visitors table if it doesn't exist
-  await db.exec(`
+// Create the visitors table (if not exists)
+db.serialize(() => {
+  db.run(`
     CREATE TABLE IF NOT EXISTS visitors (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT,
-      department TEXT,
-      purpose TEXT,
-      checkin_time TEXT,
-      checkout_time TEXT,
+      id TEXT,
+      fullName TEXT,
+      laptopBrand TEXT,
+      macAddress TEXT,
+      eventName TEXT,
+      checkIn TEXT,
+      checkOut TEXT,
+      duration TEXT,
       status TEXT
     )
   `);
+});
 
-  return db;
-}
-
-module.exports = init();
+module.exports = db;
