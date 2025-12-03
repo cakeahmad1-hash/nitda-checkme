@@ -9,7 +9,6 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     await client.connect();
 
-    // Create visitor_logs table
     await client.query(`
       CREATE TABLE IF NOT EXISTS visitor_logs (
         id SERIAL PRIMARY KEY,
@@ -32,7 +31,6 @@ export default async function handler(request: VercelRequest, response: VercelRe
       );
     `);
 
-    // Create events table
     await client.query(`
       CREATE TABLE IF NOT EXISTS events (
         id SERIAL PRIMARY KEY,
@@ -48,11 +46,26 @@ export default async function handler(request: VercelRequest, response: VercelRe
       success: true,
       message: "DB tables created ✅",
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❗ Setup API Error:', error);
+
+    // Robust error serialization
+    let serializedError: string;
+    if (error instanceof Error) {
+      serializedError = error.message;
+    } else if (typeof error === 'object') {
+      try {
+        serializedError = JSON.stringify(error, Object.getOwnPropertyNames(error));
+      } catch {
+        serializedError = String(error);
+      }
+    } else {
+      serializedError = String(error);
+    }
+
     return response.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : JSON.stringify(error),
+      error: serializedError,
     });
   }
 }
