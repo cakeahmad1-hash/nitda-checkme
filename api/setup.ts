@@ -4,11 +4,12 @@ import { createClient } from '@vercel/postgres';
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   try {
     const client = createClient({
-      connectionString: process.env.POSTGRES_URL
+      connectionString: process.env.POSTGRES_URL,
     });
 
     await client.connect();
 
+    // Create visitor_logs table
     await client.query(`
       CREATE TABLE IF NOT EXISTS visitor_logs (
         id SERIAL PRIMARY KEY,
@@ -31,6 +32,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       );
     `);
 
+    // Create events table
     await client.query(`
       CREATE TABLE IF NOT EXISTS events (
         id SERIAL PRIMARY KEY,
@@ -42,9 +44,15 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     await client.end();
 
-    return response.status(200).json({ success: true, message: "DB tables created ✅" });
+    return response.status(200).json({
+      success: true,
+      message: "DB tables created ✅",
+    });
   } catch (error) {
-    console.error(error);
-    return response.status(500).json({ success: false, error: String(error) });
+    console.error('❗ Setup API Error:', error);
+    return response.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : JSON.stringify(error),
+    });
   }
 }
