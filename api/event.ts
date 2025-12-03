@@ -1,18 +1,21 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import { createClient } from '@vercel/postgres';
 import { mapEvent } from './types';
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
+  const client = createClient();
+  await client.connect();
+
   try {
     if (request.method === 'GET') {
         const { id } = request.query;
         
         if (id) {
-            const { rows } = await sql`SELECT * FROM events WHERE id = ${id as string}`;
+            const { rows } = await client.sql`SELECT * FROM events WHERE id = ${id as string}`;
             if (rows.length === 0) return response.status(404).json({ error: 'Event not found' });
             return response.status(200).json(mapEvent(rows[0]));
         } else {
-            const { rows } = await sql`SELECT * FROM events ORDER BY created_at DESC`;
+            const { rows } = await client.sql`SELECT * FROM events ORDER BY created_at DESC`;
             return response.status(200).json(rows.map(mapEvent));
         }
     } 
@@ -20,10 +23,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
     if (request.method === 'POST') {
         const { name, customFields } = request.body;
         const createdAt = Date.now();
-        // Ensure customFields is a valid JSON string for JSONB column
         const customFieldsJson = JSON.stringify(customFields || []);
         
-        const { rows } = await sql`
+        const { rows } = await client.sql`
             INSERT INTO events (name, created_at, custom_fields)
             VALUES (${name}, ${createdAt}, ${customFieldsJson}::jsonb)
             RETURNING *;
@@ -36,5 +38,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
   } catch (error) {
     console.error(error);
     return response.status(500).json({ error: 'Internal Server Error' });
+  } finally {
+    await client.end();
   }
 }
