@@ -20,11 +20,12 @@ export default async function handler(request: VercelRequest, response: VercelRe
     if (request.method === 'POST') {
         const { name, customFields } = request.body;
         const createdAt = Date.now();
+        // Ensure customFields is a valid JSON string for JSONB column
         const customFieldsJson = JSON.stringify(customFields || []);
         
         const { rows } = await sql`
             INSERT INTO events (name, created_at, custom_fields)
-            VALUES (${name}, ${createdAt}, ${customFieldsJson})
+            VALUES (${name}, ${createdAt}, ${customFieldsJson}::jsonb)
             RETURNING *;
         `;
         
@@ -34,4 +35,6 @@ export default async function handler(request: VercelRequest, response: VercelRe
     return response.status(405).json({ error: 'Method not allowed' });
   } catch (error) {
     console.error(error);
-
+    return response.status(500).json({ error: 'Internal Server Error' });
+  }
+}
