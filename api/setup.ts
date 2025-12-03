@@ -1,13 +1,19 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@vercel/postgres';
 
+// ✅ Reuse client on warm requests to avoid crashes
+let cachedClient: ReturnType<typeof createClient> | null = null;
+
 export default async function handler(request: VercelRequest, response: VercelResponse) {
-  const client = createClient();
-  await client.connect();
-  
+
   try {
-    // 1. Create visitor_logs table
-    await client.sql`
+    const client = cachedClient ?? createClient(); // ✅ let Vercel use Neon via env vars
+    cachedClient = client;
+
+    await client.connect();
+
+    // ✅ Use .query() because .sql is not available on this client instance
+    await client.query(`
       CREATE TABLE IF NOT EXISTS visitor_logs (
         id SERIAL PRIMARY KEY,
         visitor_id TEXT NOT NULL,
@@ -27,29 +33,41 @@ export default async function handler(request: VercelRequest, response: VercelRe
         custom_data JSONB,
         context TEXT
       );
-    `;
+    `);
 
-    // 2. Create events table
-    await client.sql`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS events (
         id SERIAL PRIMARY KEY,
         name TEXT,
         created_at BIGINT,
         custom_fields JSONB
       );
-    `;
+    `);
 
-    return response.status(200).json({ 
-        success: true, 
-        message: "Database tables created successfully. You can now use the app." 
+    // 🚫 DO NOT close the connection manually, serverless hates that
+    return response.status(200).json({
+      success: true,
+      message: "Database tables created successfully ✅"
     });
-  } catch (error) {
-    console.error('Setup failed:', error);
-    return response.status(500).json({ 
-        success: false, 
-        error: error instanceof Error ? error.message : String(error) 
+
+  } catch (error: unknown) {
+    console.error('❗ Setup Crash:', error);
+
+    // ✅ Robust error serializer so you see real errors
+    let errMsg = '';
+    if (error instanceof Error) {
+      errMsg = error.message;
+    } else {
+      try {
+        errMsg = JSON.stringify(error, Object.getOwnPropertyNames(error));
+      } catch {
+        errMsg = String(error);
+      }
+    }
+
+    return response.status(500).json({
+      success: false,
+      error: errMsg || 'Unknown database error'
     });
-  } finally {
-    await client.end();
   }
 }
