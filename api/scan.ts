@@ -1,7 +1,7 @@
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
-import { mapLog } from './types';
-import { VisitorStatus } from '../types';
+import { mapLog, VisitorStatus } from './types';
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (request.method !== 'POST') return response.status(405).json({ error: 'Method not allowed' });
@@ -15,7 +15,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     };
 
-    // visitor_id is TEXT in schema, so this works safely with "visitor-..." strings
+    // Retrieve previous logs for this visitor
     const { rows: logs } = await sql`
         SELECT * FROM visitor_logs 
         WHERE visitor_id = ${visitorId} 
@@ -23,7 +23,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     `;
     const visitorLogs = logs.map(mapLog);
 
-    // Intern Specific Logic
+    // --- Intern Specific Logic ---
     if (context === 'intern') {
         const todaysInternLog = visitorLogs.find(log => 
             log.context === 'intern' && isToday(log.checkIn)
@@ -48,12 +48,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
         }
     }
 
-    // Gate / Event Logic
+    // --- Gate / Event Logic ---
     const relevantLog = visitorLogs.find(log => 
         (eventId ? log.eventId === eventId : log.context === 'gate')
     );
 
-    if (relevantLog && relevantLog.status === VisitorStatus.IN && isToday(relevantLog.checkIn)) {
+    // Check if the user is currently checked IN for today (and hasn't checked out yet)
+    if (relevantLog && relevantLog.status === VisitorStatus.IN && !relevantLog.checkOut && isToday(relevantLog.checkIn)) {
         // Check Out
         const checkOut = Date.now();
         const durationMs = checkOut - relevantLog.checkIn;
@@ -112,7 +113,6 @@ function consolidateProfile(logs: any[]) {
 
 async function getEventName(id: string) {
     try {
-        // Robust check for event name
         const { rows } = await sql`SELECT name FROM events WHERE id = ${id}`;
         return rows[0]?.name;
     } catch (e) {

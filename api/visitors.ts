@@ -5,15 +5,16 @@ import { mapLog } from './types';
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   try {
     if (request.method === 'GET') {
-        const { rows } = await sql`SELECT * FROM visitor_logs ORDER BY check_in DESC LIMIT 1000`;
+        // Limit to prevent payload too large errors on massive datasets
+        const { rows } = await sql`SELECT * FROM visitor_logs ORDER BY check_in DESC LIMIT 500`;
         return response.status(200).json(rows.map(mapLog));
     }
 
     if (request.method === 'POST') {
         const body = request.body;
         
-        // Use JSON.stringify for JSONB columns
-        const customData = JSON.stringify(body.customData || {});
+        // Explicitly stringify JSON for JSONB columns
+        const customDataJson = JSON.stringify(body.customData || {});
 
         const { rows } = await sql`
             INSERT INTO visitor_logs (
@@ -26,7 +27,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
                 ${body.laptopName || null}, ${body.laptopColor || null}, ${body.serialNumber || null}, 
                 ${body.visitorType || null}, ${body.eventId || null}, ${body.eventName || null}, 
                 ${body.checkIn}, ${body.checkOut || null}, ${body.duration || null}, 
-                ${body.status}, ${customData}, ${body.context || 'gate'}
+                ${body.status}, ${customDataJson}::jsonb, ${body.context || 'gate'}
             )
             RETURNING *;
         `;
@@ -43,7 +44,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
             WHERE id = ${id}
         `;
         
-        // Maintain consistency across all logs for this visitor
+        // Sync profile updates to other logs for the same visitor_id for consistency
+        // First get the visitor_id of the log being updated
         const { rows: logRows } = await sql`SELECT visitor_id FROM visitor_logs WHERE id = ${id}`;
         if (logRows.length > 0) {
             const visitorId = logRows[0].visitor_id;
@@ -51,7 +53,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
                 UPDATE visitor_logs
                 SET name = ${name}, department = ${department}, laptop_name = ${laptopName},
                     laptop_color = ${laptopColor}, serial_number = ${serialNumber}, visitor_type = ${visitorType}
-                WHERE visitor_id = ${visitorId}
+                WHERE visitor_id = ${visitorId} AND id != ${id}
             `;
         }
         

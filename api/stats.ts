@@ -1,13 +1,10 @@
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
-import { VisitorStatus } from '../types';
+import { VisitorStatus } from './types';
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   try {
-    // Get start of today (local time assumption or UTC, simplest is just timestamp math)
-    // For simplicity, we filter in SQL using basic logic, or fetch necessary rows.
-    // Using a rough "Last 24 hours" or "Calendar Day" is needed. 
-    // Let's use JS date to get midnight epoch.
     const todayStart = new Date();
     todayStart.setHours(0,0,0,0);
     const todayEpoch = todayStart.getTime();
@@ -27,6 +24,11 @@ export default async function handler(request: VercelRequest, response: VercelRe
     });
   } catch (error) {
     console.error(error);
-    return response.status(500).json({ error: 'Internal Server Error' });
+    // Return default stats if DB table doesn't exist yet to prevent UI crash
+    return response.status(200).json({
+        currentlyIn: 0,
+        totalVisitorsToday: 0,
+        totalEvents: 0
+    });
   }
 }
