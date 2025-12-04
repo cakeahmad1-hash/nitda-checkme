@@ -1,25 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createDbClient } from './types';
+import { sql } from '@vercel/postgres'; // ✅ This is the built-in Neon client
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
-  if (!process.env.POSTGRES_URL) {
-    return response.status(500).json({ 
-      success: false, 
-      error: 'POSTGRES_URL environment variable is missing. Check your Vercel Project Settings.' 
-    });
-  }
-
-  // Use the helper that strips 'channel_binding=require'
-  const client = createDbClient();
-
   try {
-    await client.connect();
-
-    // Create visitor_logs table
-    await client.sql`
+    // ✅ 1. Create visitor_logs table
+    await sql`
       CREATE TABLE IF NOT EXISTS visitor_logs (
         id SERIAL PRIMARY KEY,
-        visitor_id TEXT,
+        visitor_id TEXT NOT NULL,
         name TEXT,
         department TEXT,
         organization TEXT,
@@ -38,8 +26,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
       );
     `;
 
-    // Create events table
-    await client.sql`
+    // ✅ 2. Create events table
+    await sql`
       CREATE TABLE IF NOT EXISTS events (
         id SERIAL PRIMARY KEY,
         name TEXT,
@@ -48,11 +36,17 @@ export default async function handler(request: VercelRequest, response: VercelRe
       );
     `;
 
-    return response.status(200).json({ success: true, message: "Database tables initialized successfully." });
-  } catch (error) {
-    console.error('Setup failed:', error);
-    return response.status(500).json({ success: false, error: String(error) });
-  } finally {
-    try { await client.end(); } catch (e) {}
+    // ✅ 3. Return success JSON (this will now show, no crash)
+    return response.status(200).json({
+      success: true,
+      message: "Database tables created successfully ✅"
+    });
+
+  } catch (error: unknown) {
+    console.error("❗ Setup failed:", error);
+    return response.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    });
   }
 }
