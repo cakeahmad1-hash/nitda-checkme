@@ -1,19 +1,25 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createClient } from "@vercel/postgres"; // ✅ Compatible pooled Vercel connector
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createDbClient } from './types';
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
-  const client = createClient({
-    connectionString: process.env.POSTGRES_URL, // ✅ You must use the Neon pooler URL here
-  });
+  if (!process.env.POSTGRES_URL) {
+    return response.status(500).json({ 
+      success: false, 
+      error: 'POSTGRES_URL environment variable is missing. Check your Vercel Project Settings.' 
+    });
+  }
+
+  // Use the helper that strips 'channel_binding=require'
+  const client = createDbClient();
 
   try {
     await client.connect();
 
-    // ✅ 1. Create visitor_logs table
-    await client.query(`
+    // Create visitor_logs table
+    await client.sql`
       CREATE TABLE IF NOT EXISTS visitor_logs (
         id SERIAL PRIMARY KEY,
-        visitor_id TEXT NOT NULL,
+        visitor_id TEXT,
         name TEXT,
         department TEXT,
         organization TEXT,
@@ -28,34 +34,25 @@ export default async function handler(request: VercelRequest, response: VercelRe
         duration TEXT,
         status TEXT,
         custom_data JSONB,
-        custom_data JSONB,
-        custom_data JSONB,
         context TEXT
       );
-    `);
+    `;
 
-    // ✅ 2. Create events table
-    await client.query(`
+    // Create events table
+    await client.sql`
       CREATE TABLE IF NOT EXISTS events (
         id SERIAL PRIMARY KEY,
         name TEXT,
         created_at BIGINT,
         custom_fields JSONB
       );
-    `);
+    `;
 
-    return response.status(200).json({
-      success: true,
-      message: "Database tables created successfully ✅"
-    });
-
-  } catch (error: unknown) {
-    console.error("❗ Setup crashed:", error);
-    return response.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : String(error)
-    });
+    return response.status(200).json({ success: true, message: "Database tables initialized successfully." });
+  } catch (error) {
+    console.error('Setup failed:', error);
+    return response.status(500).json({ success: false, error: String(error) });
   } finally {
-    await client.end();
+    try { await client.end(); } catch (e) {}
   }
 }

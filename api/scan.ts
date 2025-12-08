@@ -1,114 +1,129 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@vercel/postgres';
-import { mapLog, VisitorStatus } from './types';
+import { createDbClient, mapLog, VisitorStatus } from './types';
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
-  if (request.method !== "POST") {
-    return response.status(405).json({ success: false, error: "Method not allowed" });
-  }
+  if (request.method !== 'POST') return response.status(405).json({ error: 'Method not allowed' });
 
-  const client = createClient({
-    connectionString: process.env.POSTGRES_URL, // ✅ Neon pooled URL
-  });
-
+  const client = createDbClient();
+  
   try {
     await client.connect();
-  } catch (err) {
-    console.error("❗ Neon connection crash:", err);
-    return response.status(500).json({ success: false, error: "Database connection failed", details: String(err) });
+  } catch (error) {
+    return response.status(500).json({ error: 'Database connection failed', details: String(error) });
   }
 
   try {
-    const { visitorId, eventId, context = "gate" } = request.body;
+    const { visitorId, eventId, context = 'gate' } = request.body;
 
     const isToday = (ts: number) => {
-      const d = new Date(ts);
-      const n = new Date();
-      return d.toDateString() === n.toDateString();
+        const d = new Date(ts);
+        const now = new Date();
+        return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     };
 
-    // 1. Get visitor logs
-    const { rows: logs } = await client.query(
-      "SELECT * FROM visitor_logs WHERE visitor_id = $1 ORDER BY check_in DESC LIMIT 500",
-      [visitorId]
-    );
-
+    // Retrieve previous logs for this visitor
+    const { rows: logs } = await client.sql`
+        SELECT * FROM visitor_logs 
+        WHERE visitor_id = ${visitorId} 
+        ORDER BY check_in DESC
+    `;
     const visitorLogs = logs.map(mapLog);
 
-    // 2. Intern context: one attendance per day
-    if (context === "intern") {
-      const attended = visitorLogs.find(l => l.context === "intern" && isToday(l.checkIn));
-      if (attended) {
-        return response.status(200).json({ success: true, action: "already_attended", log: attended });
-      }
+    // --- Intern Specific Logic ---
+    if (context === 'intern') {
+        const todaysInternLog = visitorLogs.find(log => 
+            log.context === 'intern' && isToday(log.checkIn)
+        );
 
-      const profile = consolidateProfile(visitorLogs);
-      const { rows: ins } = await client.query(
-        `INSERT INTO visitor_logs (visitor_id, name, organization, department, laptop_name, laptop_color, serial_number, visitor_type, check_in, status, context)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'intern') RETURNING *`,
-        [visitorId, profile.name, profile.organization, profile.department, profile.laptopName, profile.laptopColor, profile.serialNumber, profile.visitorType, Date.now(), VisitorStatus.ATTENDED]
-      );
-
-      return response.status(200).json({ success: true, action: "attended", log: mapLog(ins[0]) });
+        if (todaysInternLog) {
+            return response.status(200).json({ action: 'already_attended', log: todaysInternLog });
+        } else {
+            const profile = consolidateProfile(visitorLogs);
+            
+            const { rows: newRows } = await client.sql`
+                INSERT INTO visitor_logs (
+                    visitor_id, name, organization, department, laptop_name, laptop_color, 
+                    serial_number, visitor_type, check_in, status, context
+                ) VALUES (
+                    ${visitorId}, ${profile.name}, ${profile.organization}, ${profile.department}, 
+                    ${profile.laptopName}, ${profile.laptopColor}, ${profile.serialNumber}, 
+                    ${profile.visitorType}, ${Date.now()}, ${VisitorStatus.ATTENDED}, 'intern'
+                ) RETURNING *;
+            `;
+            return response.status(200).json({ action: 'attended', log: mapLog(newRows[0]) });
+        }
     }
 
-    // 3. Gate / Event Check-out if already IN today
-    const relevant = visitorLogs.find(l => eventId ? l.eventId === eventId : l.context === "gate");
-    if (relevant && relevant.status === VisitorStatus.IN && !relevant.checkOut && isToday(relevant.checkIn)) {
-      const checkOut = Date.now();
-      const durMs = checkOut - relevant.checkIn;
-      const h = Math.floor(durMs / 3600000);
-      const m = Math.floor((durMs % 3600000) / 60000);
-      const s = Math.floor((durMs % 60000) / 1000);
-      const duration = `${h}h ${m}m ${s}s`;
-
-      const { rows: upd } = await client.query(
-        `UPDATE visitor_logs SET check_out = $1, status = $2, duration = $3 WHERE id = $4 RETURNING *`,
-        [checkOut, VisitorStatus.OUT, duration, relevant.id]
-      );
-
-      return response.status(200).json({ success: true, action: "checkout", log: mapLog(upd[0]) });
-    }
-
-    // 4. Otherwise check-in
-    const profile = consolidateProfile(visitorLogs);
-    const eventName = eventId ? await getEventName(client, eventId as string) : null;
-
-    const { rows: ins } = await client.query(
-      `INSERT INTO visitor_logs (visitor_id, name, organization, department, laptop_name, laptop_color, serial_number, visitor_type, check_in, status, event_id, event_name, context)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-      [visitorId, profile.name, profile.organization, profile.department, profile.laptopName, profile.laptopColor, profile.serialNumber, profile.visitorType, Date.now(), VisitorStatus.IN, eventId ?? null, eventName, eventId ? "event" : context]
+    // --- Gate / Event Logic ---
+    const relevantLog = visitorLogs.find(log => 
+        (eventId ? log.eventId === eventId : log.context === 'gate')
     );
 
-    return response.status(200).json({ success: true, action: "checkin", log: mapLog(ins[0]) });
+    // Check if the user is currently checked IN for today (and hasn't checked out yet)
+    if (relevantLog && relevantLog.status === VisitorStatus.IN && !relevantLog.checkOut && isToday(relevantLog.checkIn)) {
+        // Check Out
+        const checkOut = Date.now();
+        const durationMs = checkOut - relevantLog.checkIn;
+        const hours = Math.floor(durationMs / 3600000);
+        const minutes = Math.floor((durationMs % 3600000) / 60000);
+        const seconds = Math.floor(((durationMs % 3600000) % 60000) / 1000);
+        const duration = `${hours}h ${minutes}m ${seconds}s`;
 
-  } catch (err) {
-    console.error("❗ Scan API crashed:", err);
-    return response.status(500).json({ success: false, error: "Internal Server Error", details: String(err) });
+        const { rows: updatedRows } = await client.sql`
+            UPDATE visitor_logs 
+            SET check_out = ${checkOut}, status = ${VisitorStatus.OUT}, duration = ${duration}
+            WHERE id = ${relevantLog.id}
+            RETURNING *;
+        `;
+        return response.status(200).json({ action: 'checkout', log: mapLog(updatedRows[0]) });
+    } else {
+        // Check In
+        const profile = consolidateProfile(visitorLogs);
+        const eventName = eventId ? (await getEventName(client, eventId)) : undefined;
+
+        const { rows: newRows } = await client.sql`
+            INSERT INTO visitor_logs (
+                visitor_id, name, organization, department, laptop_name, laptop_color, 
+                serial_number, visitor_type, check_in, status, event_id, event_name, context
+            ) VALUES (
+                ${visitorId}, ${profile.name}, ${profile.organization}, ${profile.department}, 
+                ${profile.laptopName}, ${profile.laptopColor}, ${profile.serialNumber}, 
+                ${profile.visitorType}, ${Date.now()}, ${VisitorStatus.IN}, ${eventId || null}, 
+                ${eventName || null}, ${eventId ? 'event' : context}
+            ) RETURNING *;
+        `;
+        return response.status(200).json({ action: 'checkin', log: mapLog(newRows[0]) });
+    }
+
+  } catch (error) {
+    console.error('Scan failed:', error);
+    return response.status(500).json({ error: 'Internal Server Error', details: String(error) });
   } finally {
-    await client.end();
+    try { await client.end(); } catch (e) {}
   }
 }
 
-// Helpers from your original code (kept intact)
 function consolidateProfile(logs: any[]) {
-  const ok = (v: any) => v && v !== "Unknown" && v !== "";
-  return logs.reduce((a, l) => ({
-    name: ok(l.name) ? l.name : a.name,
-    organization: ok(l.organization) ? l.organization : a.organization,
-    department: ok(l.department) ? l.department : a.department,
-    laptopName: ok(l.laptopName) ? l.laptopName : a.laptopName,
-    laptopColor: ok(l.laptopColor) ? l.laptopColor : a.laptopColor,
-    serialNumber: ok(l.serialNumber) ? l.serialNumber : a.serialNumber,
-    visitorType: ok(l.visitorType) ? l.visitorType : a.visitorType,
-  }), { name:"Unknown", organization:"", department:"", laptopName:"", laptopColor:"", serialNumber:"", visitorType:undefined });
+    const valid = (val: any) => val && val !== 'Unknown' && val !== '';
+    return logs.reduce((acc, log) => ({
+        name: valid(log.name) ? log.name : acc.name,
+        organization: valid(log.organization) ? log.organization : acc.organization,
+        department: valid(log.department) ? log.department : acc.department,
+        laptopName: valid(log.laptopName) ? log.laptopName : acc.laptopName,
+        laptopColor: valid(log.laptopColor) ? log.laptopColor : acc.laptopColor,
+        serialNumber: valid(log.serialNumber) ? log.serialNumber : acc.serialNumber,
+        visitorType: valid(log.visitorType) ? log.visitorType : acc.visitorType,
+    }), { 
+        name: 'Unknown', organization: '', department: '', laptopName: '', 
+        laptopColor: '', serialNumber: '', visitorType: undefined 
+    });
 }
 
 async function getEventName(client: any, id: string) {
-  try {
-    const { rows } = await client.query("SELECT name FROM events WHERE id = $1", [id]);
-    return rows[0]?.name;
-  } catch {
-    return null;
-  }
+    try {
+        const { rows } = await client.sql`SELECT name FROM events WHERE id = ${id}`;
+        return rows[0]?.name;
+    } catch (e) {
+        return undefined;
+    }
 }
