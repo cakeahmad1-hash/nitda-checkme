@@ -1,7 +1,0 @@
-{
-  "name": "NITDA CheckMe",
-  "description": "A smart visitor and event attendance management system using QR codes and browser cookies to record and track people entering or leaving a facility or event.",
-  "requestFramePermissions": [
-    "camera"
-  ]
-}
