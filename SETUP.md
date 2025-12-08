@@ -1,31 +1,28 @@
-# Vercel Database Setup Instructions
+# Vercel & Neon Database Setup
 
-This application uses Vercel Postgres for permanent data storage.
+Your application is configured to use Vercel Serverless Functions with a Neon Postgres database.
 
-### 1. Create a Postgres Database on Vercel
-1. Go to your Vercel Dashboard.
-2. Navigate to the **Storage** tab.
-3. Click **Create Database** and select **Postgres**.
-4. Give it a name (e.g., `nitda-checkme-db`) and create it.
-5. In your project settings, link this database to your Vercel project. This will automatically set environment variables like `POSTGRES_URL`.
+### 1. Configure Environment Variables
+You **must** add the database connection string to your Vercel Project Settings for the code to work.
 
-### 2. Install Dependencies
-Ensure your `package.json` includes the following dependencies (already included in the code):
-```json
-"dependencies": {
-  "@vercel/postgres": "^0.5.0",
-  "@vercel/node": "^3.0.0"
-}
-```
+1. Go to your **Vercel Project Dashboard**.
+2. Click on **Settings** -> **Environment Variables**.
+3. Add a new variable:
+   - **Key**: `POSTGRES_URL`
+   - **Value**: Your Neon Connection String (e.g., `postgres://user:pass@ep-xyz.aws.neon.tech/neondb?sslmode=require`)
 
-### 3. Initialize the Database
-Once you have deployed your project:
+> **Note:** Your code automatically handles the `channel_binding` issue, so you can paste the full connection string provided by Neon.
+
+### 2. Deploy
+Push your code to GitHub/GitLab and let Vercel build the project.
+
+### 3. Initialize the Tables (Run Once)
+The database starts empty. You need to create the tables (`visitor_logs`, `events`) before the app will work.
+
 1. Open your browser.
 2. Visit your deployed URL with the path `/api/setup`.
-   - Example: `https://your-project.vercel.app/api/setup`
-3. You should see a JSON response: `{"success": true, "message": "..."}`.
-4. Your database is now ready! You can start using the app.
+   - Example: `https://your-project-name.vercel.app/api/setup`
+3. You should see a JSON response: `{"success": true, "message": "Database tables initialized successfully."}`.
 
-### 4. Troubleshooting
-- If you see an error, check the **Function Logs** in your Vercel Dashboard for details.
-- Ensure the database is correctly linked in the Vercel **Storage** tab.
+### 4. Done!
+Your app is now live and saving data to Neon.
