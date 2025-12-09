@@ -1,8 +1,10 @@
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createDbClient } from './types';
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (!process.env.POSTGRES_URL) {
+    console.error('Missing POSTGRES_URL environment variable');
     return response.status(500).json({ 
       success: false, 
       error: 'POSTGRES_URL environment variable is missing. Check your Vercel Project Settings.' 
@@ -13,7 +15,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
   const client = createDbClient();
 
   try {
+    console.log('Connecting to database...');
     await client.connect();
+    console.log('Connected successfully. Creating tables...');
 
     // Create visitor_logs table
     await client.sql`
@@ -48,6 +52,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       );
     `;
 
+    console.log('Tables created successfully.');
     return response.status(200).json({ success: true, message: "Database tables initialized successfully." });
   } catch (error) {
     console.error('Setup failed:', error);

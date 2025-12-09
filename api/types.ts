@@ -83,11 +83,12 @@ export const mapEvent = (row: any): Event => ({
 export const createDbClient = () => {
     const url = process.env.POSTGRES_URL;
     if (!url) {
-        // Return default client which will likely fail with a missing env var error later,
-        // but we handle it in the API handlers.
         return createClient();
     }
-    // Remove the problematic channel_binding parameter
-    const sanitizedUrl = url.replace(/channel_binding=require/g, "");
+    
+    // intelligently remove channel_binding parameter and the preceding character if it's & or ?
+    // This handles both "...&channel_binding=require" and "...?channel_binding=require"
+    const sanitizedUrl = url.replace(/(\?|&)channel_binding=require/g, "");
+    
     return createClient({ connectionString: sanitizedUrl });
 };
