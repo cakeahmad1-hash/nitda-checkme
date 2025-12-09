@@ -1,3 +1,4 @@
+
 # Vercel & Neon Database Setup
 
 Your application is configured to use Vercel Serverless Functions with a Neon Postgres database.
@@ -9,9 +10,9 @@ You **must** add the database connection string to your Vercel Project Settings 
 2. Click on **Settings** -> **Environment Variables**.
 3. Add a new variable:
    - **Key**: `POSTGRES_URL`
-   - **Value**: Your Neon Connection String (e.g., `postgres://user:pass@ep-xyz.aws.neon.tech/neondb?sslmode=require`)
+   - **Value**: `postgresql://neondb_owner:npg_igA5LBYupS3N@ep-wandering-snow-adqozsn2-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require`
 
-> **Note:** Your code automatically handles the `channel_binding` issue, so you can paste the full connection string provided by Neon.
+> **Important:** Do NOT include `&channel_binding=require` at the end of the string. It causes serverless functions to crash. Use the exact value above.
 
 ### 2. Deploy
 Push your code to GitHub/GitLab and let Vercel build the project.
