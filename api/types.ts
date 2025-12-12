@@ -1,4 +1,3 @@
-
 import { createClient } from '@vercel/postgres';
 
 export enum VisitorStatus {
@@ -52,43 +51,45 @@ export interface Event {
 }
 
 export const mapLog = (row: any): VisitorLog => ({
-    id: row.id,
-    visitorId: row.visitor_id,
-    name: row.name,
-    department: row.department || '',
-    organization: row.organization || '',
-    laptopName: row.laptop_name || '',
-    laptopColor: row.laptop_color || '',
-    serialNumber: row.serial_number || '',
-    visitorType: row.visitor_type as VisitorType,
-    eventId: row.event_id,
-    eventName: row.event_name,
-    checkIn: Number(row.check_in),
-    checkOut: row.check_out ? Number(row.check_out) : undefined,
-    duration: row.duration,
-    status: row.status as VisitorStatus,
-    customData: row.custom_data || {},
-    context: row.context || 'gate'
+  id: row.id,
+  visitorId: row.visitor_id,
+  name: row.name,
+  department: row.department || '',
+  organization: row.organization || '',
+  laptopName: row.laptop_name || '',
+  laptopColor: row.laptop_color || '',
+  serialNumber: row.serial_number || '',
+  visitorType: row.visitor_type as VisitorType,
+  eventId: row.event_id,
+  eventName: row.event_name,
+  checkIn: Number(row.check_in),
+  checkOut: row.check_out ? Number(row.check_out) : undefined,
+  duration: row.duration,
+  status: row.status as VisitorStatus,
+  customData: row.custom_data || {},
+  context: row.context || 'gate',
 });
 
 export const mapEvent = (row: any): Event => ({
-    id: row.id,
-    name: row.name,
-    createdAt: Number(row.created_at),
-    customFields: row.custom_fields || []
+  id: row.id,
+  name: row.name,
+  createdAt: Number(row.created_at),
+  customFields: row.custom_fields || [],
 });
 
-// Helper to create a DB client with a sanitized connection string.
-// This fixes crashes caused by 'channel_binding=require' in Vercel environments.
+/**
+ * Creates a DB client using NEON DATABASE_URL safely.
+ * Fixes serverless crashes caused by "channel_binding=require".
+ */
 export const createDbClient = () => {
-    const url = process.env.POSTGRES_URL;
-    if (!url) {
-        return createClient();
-    }
-    
-    // intelligently remove channel_binding parameter and the preceding character if it's & or ?
-    // This handles both "...&channel_binding=require" and "...?channel_binding=require"
-    const sanitizedUrl = url.replace(/(\?|&)channel_binding=require/g, "");
-    
-    return createClient({ connectionString: sanitizedUrl });
+  const url = process.env.POSTGRES_URL;
+
+  if (!url) {
+    throw new Error("❌ POSTGRES_URL is missing. Add it in Vercel → Environment Variables.");
+  }
+
+  // Remove the channel_binding parameter if Neon includes it
+  const sanitizedUrl = url.replace(/(\?|&)channel_binding=require/g, "");
+
+  return createClient({ connectionString: sanitizedUrl });
 };
