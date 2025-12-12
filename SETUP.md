@@ -27,3 +27,4 @@ The database starts empty. You need to create the tables (`visitor_logs`, `event
 
 ### 4. Done!
 Your app is now live and saving data to Neon.
+redeploy
