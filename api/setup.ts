@@ -1,4 +1,3 @@
-
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createDbClient } from './types';
 
@@ -11,13 +10,10 @@ export default async function handler(request: VercelRequest, response: VercelRe
     });
   }
 
-  // Use the helper that strips 'channel_binding=require'
-  const client = createDbClient();
+  const client = createDbClient(); // no connect()
 
   try {
-    console.log('Connecting to database...');
-    await client.connect();
-    console.log('Connected successfully. Creating tables...');
+    console.log('Creating tables...');
 
     // Create visitor_logs table
     await client.sql`
@@ -53,11 +49,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
     `;
 
     console.log('Tables created successfully.');
-    return response.status(200).json({ success: true, message: "Database tables initialized successfully." });
+    return response.status(200).json({ 
+      success: true, 
+      message: "Database tables initialized successfully." 
+    });
+
   } catch (error) {
     console.error('Setup failed:', error);
     return response.status(500).json({ success: false, error: String(error) });
-  } finally {
-    try { await client.end(); } catch (e) {}
   }
 }
