@@ -130,13 +130,11 @@ const Card: React.FC<{ children: React.ReactNode, className?: string }> = ({ chi
 );
 
 // FIX: Simplified the onClick prop type to `() => void` as none of the handlers in the app use the event argument. This resolves potential type conflicts and makes the component's API clearer.
-// FIX: Added `title` to Button props to fix TypeScript error.
-const Button: React.FC<{ onClick?: () => void; children: React.ReactNode; className?: string; type?: 'button' | 'submit' | 'reset'; disabled?: boolean; title?: string }> = ({ onClick, children, className = '', type = 'button', disabled = false, title }) => (
+const Button: React.FC<{ onClick?: () => void; children: React.ReactNode; className?: string; type?: 'button' | 'submit' | 'reset'; disabled?: boolean }> = ({ onClick, children, className = '', type = 'button', disabled = false }) => (
     <button
         type={type}
         onClick={onClick}
         disabled={disabled}
-        title={title}
         className={`inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-emerald-500 transition-transform transform hover:scale-105 disabled:bg-gray-500 disabled:cursor-not-allowed ${className}`}
     >
         {children}
@@ -189,8 +187,7 @@ const HomePortal: React.FC<{}> = ({}) => {
 const QRScannerPage: React.FC<{}> = ({}) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    // FIX: Initialize useRef with null to prevent "Expected 1 arguments, but got 0" TypeScript error
-    const animationFrameId = useRef<number | null>(null);
+    const animationFrameId = useRef<number>();
     const navigate = useNavigate();
     const [status, setStatus] = useState<'idle' | 'scanning' | 'error' | 'no_camera'>('idle');
     const [errorMessage, setErrorMessage] = useState('');
@@ -530,12 +527,8 @@ const RegistrationForm: React.FC<{ mode: 'gate' | 'event' | 'intern'; db: MockDb
         setIsLoading(true);
         try {
             const existingVisitorId = localStorage.getItem(VISITOR_ID_KEY);
-            // FIX: Cast visitorType string to VisitorType enum or undefined
             const { visitorId } = await registerNewVisitor(
-                {
-                    ...formData,
-                    visitorType: formData.visitorType ? (formData.visitorType as VisitorType) : undefined
-                }, 
+                formData, 
                 eventId, 
                 existingVisitorId, 
                 customFormData,
