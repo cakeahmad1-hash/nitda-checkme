@@ -527,7 +527,8 @@ const RegistrationForm: React.FC<{ mode: 'gate' | 'event' | 'intern'; db: MockDb
         setIsLoading(true);
         try {
             const existingVisitorId = localStorage.getItem(VISITOR_ID_KEY);
-            const { visitorId } = await registerNewVisitor(
+            // Ensure registerNewVisitor finishes or fails with alert
+            const result = await registerNewVisitor(
                 formData, 
                 eventId, 
                 existingVisitorId, 
@@ -535,13 +536,18 @@ const RegistrationForm: React.FC<{ mode: 'gate' | 'event' | 'intern'; db: MockDb
                 mode === 'event' ? 'event' : (mode === 'intern' ? 'intern' : 'gate')
             );
             
+            if (!result || !result.visitorId) {
+                throw new Error("Registration succeeded but no ID was returned.");
+            }
+
             // If it was a new visitor, set their ID in storage for future visits.
             if (!existingVisitorId) {
-                localStorage.setItem(VISITOR_ID_KEY, visitorId);
+                localStorage.setItem(VISITOR_ID_KEY, result.visitorId);
             }
             navigate('/register/success', { state: { mode } });
         } catch (error) {
             console.error('Registration failed:', error);
+            alert("Registration failed. Please check your internet connection and try again.");
             setIsLoading(false);
         }
     };
@@ -869,12 +875,14 @@ const CustomFieldsBuilder: React.FC<{ fields: FormField[], setFields: React.Disp
 
 
 const AdminDashboard: React.FC<{ onLogout: () => void; db: MockDb }> = ({ onLogout, db }) => {
-    const { getVisitorLogs, getStats, createEvent, getEvents, addManualVisitorLog, updateVisitorLog } = db;
+    const { 
+        visitorLogs: dbLogs, 
+        events: dbEvents, 
+        stats: dbStats,
+        getVisitorLogs, getStats, createEvent, getEvents, addManualVisitorLog, updateVisitorLog 
+    } = db;
     const navigate = useNavigate();
-    const [logs, setLogs] = useState<VisitorLog[]>([]);
-    const [stats, setStats] = useState<Stats | null>(null);
-    const [events, setEvents] = useState<Event[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false); // Changed to false by default as listeners are async anyway
     const [filter, setFilter] = useState<'ALL' | 'IN' | 'OUT'>('ALL');
     const [searchQuery, setSearchQuery] = useState('');
     const [view, setView] = useState<'logs' | 'qr' | 'events' | 'interns'>('logs');
@@ -896,6 +904,11 @@ const AdminDashboard: React.FC<{ onLogout: () => void; db: MockDb }> = ({ onLogo
     const [internViewType, setInternViewType] = useState<'daily' | 'report'>('daily');
     const [reportMonth, setReportMonth] = useState(new Date().getMonth());
     const [reportYear, setReportYear] = useState(new Date().getFullYear());
+
+    // Local stats helper for sync feedback
+    const stats = dbStats;
+    const logs = dbLogs;
+    const events = dbEvents;
 
     // Helper to format date for datetime-local input
     const toDateTimeLocal = (date: Date) => {
@@ -933,17 +946,8 @@ const AdminDashboard: React.FC<{ onLogout: () => void; db: MockDb }> = ({ onLogo
 
     const refreshData = useCallback(async () => {
         setIsLoading(true);
-        try {
-            const [logsData, statsData, eventsData] = await Promise.all([getVisitorLogs(), getStats(), getEvents()]);
-            setLogs(logsData);
-            setStats(statsData);
-            setEvents(eventsData);
-        } catch (error) {
-            console.error("Failed to fetch data", error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [getVisitorLogs, getStats, getEvents]);
+        setTimeout(() => setIsLoading(false), 500); // Simple UI feedback for manual refresh
+    }, []);
 
     const showToast = (message: string) => {
         setToastMessage(message);
@@ -951,9 +955,16 @@ const AdminDashboard: React.FC<{ onLogout: () => void; db: MockDb }> = ({ onLogo
     };
     
     useEffect(() => {
-        refreshData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        // No need for initial fetch, listeners handle it.
+        // We set loading initially though to show spinner if empty.
+        if (logs.length === 0 && events.length === 0) {
+            setIsLoading(true);
+            const timer = setTimeout(() => setIsLoading(false), 2000); // Give it some time to load
+            return () => clearTimeout(timer);
+        } else {
+            setIsLoading(false);
+        }
+    }, [logs.length, events.length]);
     
     useEffect(() => {
         let interval: number;
@@ -976,15 +987,24 @@ const AdminDashboard: React.FC<{ onLogout: () => void; db: MockDb }> = ({ onLogo
 
     const handleCreateEvent = async () => {
         if (!newEventName.trim()) return;
+        
+        if (customFields.length === 0) {
+            alert('Please add at least one field before creating an event.');
+            return;
+        }
+
         setIsCreatingEvent(true);
-        const newEvent = await createEvent(newEventName, customFields);
-        setNewEventName('');
-        setCustomFields([]); // Reset custom fields after creation
-        // Manually update state for immediate UI feedback to avoid stale data from refreshData
-        setEvents(prevEvents => [newEvent, ...prevEvents].sort((a,b) => b.createdAt - a.createdAt));
-        setStats(prevStats => prevStats ? { ...prevStats, totalEvents: prevStats.totalEvents + 1 } : null);
-        setIsCreatingEvent(false);
-        showToast('Event QR code generated successfully!');
+        try {
+            await createEvent(newEventName, customFields);
+            setNewEventName('');
+            setCustomFields([]); // Reset custom fields after creation
+            showToast('Event QR code generated successfully!');
+        } catch (e) {
+            console.error("Failed to create event:", e);
+            alert("Failed to create event. Please try again.");
+        } finally {
+            setIsCreatingEvent(false);
+        }
     };
 
     const confirmRecreateGateQR = () => {
