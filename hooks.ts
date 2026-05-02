@@ -24,12 +24,21 @@ export const useMockDb = () => {
   const [visitorLogs, setVisitorLogs] = useState<VisitorLog[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
 
+  // Calculate real-time stats
+  const stats: Stats = {
+    currentlyIn: visitorLogs.filter(log => log.status === VisitorStatus.IN && log.context === 'gate').length,
+    totalVisitorsToday: new Set(visitorLogs.filter(log => isToday(log.checkIn)).map(log => log.visitorId)).size,
+    totalEvents: events.length,
+  };
+
   // Real-time listener for visitor logs
   useEffect(() => {
     const q = query(collection(db, 'visitorLogs'), orderBy('checkIn', 'desc'));
     const unsub = onSnapshot(q, (snapshot) => {
       const logs = snapshot.docs.map(d => d.data() as VisitorLog);
       setVisitorLogs(logs);
+    }, (error) => {
+        console.error("Firestore listener error:", error);
     });
     return () => unsub();
   }, []);
@@ -40,6 +49,8 @@ export const useMockDb = () => {
     const unsub = onSnapshot(q, (snapshot) => {
       const evts = snapshot.docs.map(d => d.data() as Event);
       setEvents(evts);
+    }, (error) => {
+        console.error("Firestore events listener error:", error);
     });
     return () => unsub();
   }, []);
@@ -57,17 +68,30 @@ export const useMockDb = () => {
   }, [events]);
 
   const getStats = useCallback(async (): Promise<Stats> => {
-    const todayLogs = visitorLogs.filter(log => isToday(log.checkIn));
-    const uniqueVisitorsToday = new Set(todayLogs.map(log => log.visitorId));
-    return {
-      currentlyIn: visitorLogs.filter(log => log.status === VisitorStatus.IN).length,
-      totalVisitorsToday: uniqueVisitorsToday.size,
-      totalEvents: events.length,
-    };
-  }, [visitorLogs, events]);
+    return stats;
+  }, [stats]);
 
   const saveLog = async (log: VisitorLog) => {
-    await setDoc(doc(db, 'visitorLogs', log.id), log);
+    try {
+        await setDoc(doc(db, 'visitorLogs', log.id), {
+            ...log,
+            // Ensure no undefined values are sent to Firestore to prevent "hangs" or errors
+            eventName: log.eventName || null,
+            eventId: log.eventId || null,
+            organization: log.organization || null,
+            department: log.department || null,
+            laptopName: log.laptopName || null,
+            laptopColor: log.laptopColor || null,
+            serialNumber: log.serialNumber || null,
+            visitorType: log.visitorType || null,
+            customData: log.customData || null,
+            duration: log.duration || null,
+            checkOut: log.checkOut || null,
+        });
+    } catch (e) {
+        console.error("Error saving log:", e);
+        throw e;
+    }
   };
 
   const consolidateVisitorDetails = (logs: VisitorLog[]) => {
@@ -277,6 +301,9 @@ export const useMockDb = () => {
   }, [visitorLogs]);
 
   return {
+    visitorLogs,
+    events,
+    stats,
     getVisitorLogs, handleVisitorScan, registerNewVisitor, createEvent,
     getEvents, getStats, getEventById, getLatestLogForVisitor,
     hasVisitorRegisteredForEvent, addManualVisitorLog, updateVisitorLog
