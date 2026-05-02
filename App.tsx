@@ -214,8 +214,14 @@ const QRScannerPage: React.FC<{}> = ({}) => {
 
                 if (code) {
                     try {
-                        const url = new URL(code.data);
-                        const hashPath = url.hash;
+                        let hashPath = '';
+                        if (code.data.startsWith('#/')) {
+                            hashPath = code.data;
+                        } else {
+                            const url = new URL(code.data);
+                            hashPath = url.hash;
+                        }
+
                         if (hashPath && hashPath.startsWith('#/')) {
                             isProcessingRef.current = true; // Lock processing
 
@@ -322,9 +328,12 @@ const ScanHandler: React.FC<{ mode: 'gate' | 'event' | 'intern'; db: MockDb }> =
     const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
     const [message, setMessage] = useState('');
     const [details, setDetails] = useState('');
+    const processingRef = useRef(false);
 
     useEffect(() => {
         const processScan = async () => {
+            if (processingRef.current) return;
+            processingRef.current = true;
             // Intern QR code validation
             if (mode === 'intern') {
                 const queryParams = new URLSearchParams(location.search);
@@ -1217,8 +1226,15 @@ const AdminDashboard: React.FC<{ onLogout: () => void; db: MockDb }> = ({ onLogo
         setAttendeeSearchQuery(''); // Reset search on close
     };
     
-    const gateQRUrl = `${window.location.origin}${window.location.pathname}#/gate?v=${gateQRKey}`;
-    const internQRUrl = `${window.location.origin}${window.location.pathname}#/intern-attendance?ts=${internQRTimestamp}`;
+    // Helper to get base URL for QR codes
+    const getBaseQRUrl = useCallback(() => {
+        // Remove trailing index.html or other file names to keep the hash routing working smoothly
+        const cleanPathname = window.location.pathname.replace(/\/[^/]*\.[^/]*$/, '/').replace(/\/$/, '');
+        return `${window.location.origin}${cleanPathname}/`;
+    }, []);
+
+    const gateQRUrl = `${getBaseQRUrl()}#/gate?v=${gateQRKey}`;
+    const internQRUrl = `${getBaseQRUrl()}#/intern-attendance?ts=${internQRTimestamp}`;
 
 
     const handleDownloadGenericQR = async (url: string, baseFilename: string) => {
@@ -1245,7 +1261,7 @@ const AdminDashboard: React.FC<{ onLogout: () => void; db: MockDb }> = ({ onLogo
     
     const handleDownloadEventQR = async () => {
         if (!selectedEventForQR) return;
-        const eventUrl = `${window.location.origin}${window.location.pathname}#/event/${selectedEventForQR.id}`;
+        const eventUrl = `${getBaseQRUrl()}#/event/${selectedEventForQR.id}`;
         const fileName = `QR_${selectedEventForQR.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
         handleDownloadGenericQR(eventUrl, fileName);
     };
@@ -1578,7 +1594,7 @@ const AdminDashboard: React.FC<{ onLogout: () => void; db: MockDb }> = ({ onLogo
                             <h4 className="font-semibold mb-3 border-t border-gray-700 pt-4">Existing Events</h4>
                             <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
                                 {events.length > 0 ? events.map(event => {
-                                    const eventUrl = `${window.location.origin}${window.location.pathname}#/event/${event.id}`;
+                                    const eventUrl = `${getBaseQRUrl()}#/event/${event.id}`;
                                     return (
                                         <div key={event.id} className="flex items-center justify-between bg-gray-700/50 p-3 rounded-lg">
                                             <div>
@@ -1640,7 +1656,7 @@ const AdminDashboard: React.FC<{ onLogout: () => void; db: MockDb }> = ({ onLogo
                         <p className="text-gray-400 mb-4">Scan to register for "{selectedEventForQR.name}"</p>
                         <div className="bg-white p-4 inline-block rounded-lg shadow-md mb-6">
                             <img 
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`${window.location.origin}${window.location.pathname}#/event/${selectedEventForQR.id}`)}`} 
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`${getBaseQRUrl()}#/event/${selectedEventForQR.id}`)}`} 
                                 alt={`${selectedEventForQR.name} QR Code`} 
                             />
                         </div>
