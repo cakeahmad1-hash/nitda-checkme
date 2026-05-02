@@ -348,8 +348,14 @@ const ScanHandler: React.FC<{ mode: 'gate' | 'event' | 'intern'; db: MockDb }> =
 
             const visitorId = localStorage.getItem(VISITOR_ID_KEY);
 
-            // If it's a new visitor (no ID), they must register.
-            if (!visitorId) {
+            // Fetch details for existing visitors to see if they need registration
+            let visitorDetails = null;
+            if (visitorId) {
+                visitorDetails = await getLatestLogForVisitor(visitorId);
+            }
+
+            // If it's a new visitor (no ID) or they have an "Unknown" name (first time scan without registration), they must register.
+            if (!visitorId || !visitorDetails || visitorDetails.name === 'Unknown') {
                 if (mode === 'gate') navigate('/visitor/register');
                 else if (mode === 'intern') navigate('/intern/register');
                 else navigate(`/event/${eventId}/register`); // mode === 'event'
@@ -579,9 +585,11 @@ const RegistrationForm: React.FC<{ mode: 'gate' | 'event' | 'intern'; db: MockDb
         intern: 'Intern Attendance'
     };
     
-    const internTypes = {
-        [VisitorType.CORPER]: 'NYSC',
-        [VisitorType.SIWES]: 'SIWES',
+    const visitorTypes = {
+        [VisitorType.CORPER]: 'NYSC Corper',
+        [VisitorType.SIWES]: 'SIWES / IT',
+        [VisitorType.STAFF]: 'Staff',
+        [VisitorType.GUEST]: 'Guest',
     };
 
     return (
@@ -633,10 +641,10 @@ const RegistrationForm: React.FC<{ mode: 'gate' | 'event' | 'intern'; db: MockDb
                         {isIntern && (
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-gray-300">
-                                    Internship Type <span className="text-red-400">*</span>
+                                    Your Role / Type <span className="text-red-400">*</span>
                                 </label>
                                 <div className="flex flex-wrap gap-x-6 gap-y-2 pt-1">
-                                    {Object.entries(internTypes).map(([key, label]) => (
+                                    {Object.entries(visitorTypes).map(([key, label]) => (
                                         <div key={key} className="flex items-center">
                                             <input
                                                 id={`visitorType-${key}`}
@@ -1226,11 +1234,9 @@ const AdminDashboard: React.FC<{ onLogout: () => void; db: MockDb }> = ({ onLogo
         setAttendeeSearchQuery(''); // Reset search on close
     };
     
-    // Helper to get base URL for QR codes
     const getBaseQRUrl = useCallback(() => {
-        // Remove trailing index.html or other file names to keep the hash routing working smoothly
-        const cleanPathname = window.location.pathname.replace(/\/[^/]*\.[^/]*$/, '/').replace(/\/$/, '');
-        return `${window.location.origin}${cleanPathname}/`;
+        // Use the current URL minus everything from the hash onwards to get the base application URL
+        return window.location.href.split('#')[0];
     }, []);
 
     const gateQRUrl = `${getBaseQRUrl()}#/gate?v=${gateQRKey}`;
