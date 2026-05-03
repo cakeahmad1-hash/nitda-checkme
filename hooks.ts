@@ -23,6 +23,15 @@ const isToday = (timestamp: number) => {
 export const useMockDb = () => {
   const [visitorLogs, setVisitorLogs] = useState<VisitorLog[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
+  const [isReady, setIsReady] = useState(false);
+  const [logsLoaded, setLogsLoaded] = useState(false);
+  const [eventsLoaded, setEventsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (logsLoaded && eventsLoaded) {
+      setIsReady(true);
+    }
+  }, [logsLoaded, eventsLoaded]);
 
   // Calculate real-time stats
   const stats: Stats = {
@@ -37,8 +46,10 @@ export const useMockDb = () => {
     const unsub = onSnapshot(q, (snapshot) => {
       const logs = snapshot.docs.map(d => d.data() as VisitorLog);
       setVisitorLogs(logs);
+      setLogsLoaded(true);
     }, (error) => {
         console.error("Firestore listener error:", error);
+        setLogsLoaded(true); // Set to true even on error to unblock UI
     });
     return () => unsub();
   }, []);
@@ -49,8 +60,10 @@ export const useMockDb = () => {
     const unsub = onSnapshot(q, (snapshot) => {
       const evts = snapshot.docs.map(d => d.data() as Event);
       setEvents(evts);
+      setEventsLoaded(true);
     }, (error) => {
         console.error("Firestore events listener error:", error);
+        setEventsLoaded(true); // Set to true even on error to unblock UI
     });
     return () => unsub();
   }, []);
@@ -304,6 +317,7 @@ export const useMockDb = () => {
     visitorLogs,
     events,
     stats,
+    isReady,
     getVisitorLogs, handleVisitorScan, registerNewVisitor, createEvent,
     getEvents, getStats, getEventById, getLatestLogForVisitor,
     hasVisitorRegisteredForEvent, addManualVisitorLog, updateVisitorLog
