@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Press+Start+2P&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-pixel: "Press Start 2P", system-ui;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: #0d1117;
+  color: #e6edf3;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+/* Logo Animations */
+@keyframes spin1 { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes spin2 { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+@keyframes spin3 { from { transform: rotate(45deg); } to { transform: rotate(405deg); } }
+@keyframes glowPulse { 0%, 100% { filter: drop-shadow(0 0 2px #2ee89a44); } 50% { filter: drop-shadow(0 0 6px #2ee89a88); } }
+
+.orbit-1 { transform-origin: 18px 18px; animation: spin1 6s linear infinite; }
+.orbit-2 { transform-origin: 18px 18px; animation: spin2 8s linear infinite; }
+.orbit-3 { transform-origin: 18px 18px; animation: spin3 10s linear infinite; }
+.dot-orbit-1 { transform-origin: 18px 18px; animation: spin1 6s linear infinite; }
+.dot-orbit-2 { transform-origin: 18px 18px; animation: spin2 8s linear infinite; }
+.dot-orbit-3 { transform-origin: 18px 18px; animation: spin3 10s linear infinite; }
+.logo-glow { animation: glowPulse 3s ease-in-out infinite; }
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+::-webkit-scrollbar-thumb {
+  background: #21262d;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2ee89a55;
+}
+
+/* Animations */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.35s ease forwards;
+}
+
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes wave {
+  0%, 100% { transform: rotate(-28deg); }
+  50% { transform: rotate(28deg); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+/* Page wrapper for mouse interactions */
+.design-wrapper {
+  position: relative;
+  min-height: 100vh;
+  z-index: 2;
+}
