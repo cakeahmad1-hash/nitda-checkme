@@ -321,7 +321,7 @@ const QRScannerPage: React.FC<{}> = ({}) => {
 
 
 const ScanHandler: React.FC<{ mode: 'gate' | 'event' | 'intern'; db: MockDb }> = ({ mode, db }) => {
-    const { handleVisitorScan, hasVisitorRegisteredForEvent, getEventById, getLatestLogForVisitor } = db;
+    const { handleVisitorScan, hasVisitorRegisteredForEvent, getEventById, getLatestLogForVisitor, isReady } = db;
     const navigate = useNavigate();
     const { eventId } = useParams();
     const location = useLocation();
@@ -332,13 +332,15 @@ const ScanHandler: React.FC<{ mode: 'gate' | 'event' | 'intern'; db: MockDb }> =
 
     useEffect(() => {
         const processScan = async () => {
-            if (processingRef.current) return;
+            if (processingRef.current || !isReady) return;
             processingRef.current = true;
+            
             // Intern QR code validation
             if (mode === 'intern') {
                 const queryParams = new URLSearchParams(location.search);
                 const ts = queryParams.get('ts');
-                if (!ts || Date.now() - parseInt(ts, 10) > 7000) { // 7 second validity window
+                // Increased to 60 seconds to allow for slow mobile page loads
+                if (!ts || Date.now() - parseInt(ts, 10) > 60000) { 
                     setStatus('error');
                     setMessage('QR Code Expired');
                     setDetails('This QR code has expired for security reasons. Please ask the admin for the current code.');
@@ -410,11 +412,11 @@ setMessage("You're All Set!");
             }
         };
 
-        if (status === 'processing') {
+        if (status === 'processing' && isReady) {
             processScan();
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [status, eventId, mode, navigate, location.search, handleVisitorScan, hasVisitorRegisteredForEvent, getEventById, getLatestLogForVisitor]);
+    }, [status, eventId, mode, navigate, location.search, handleVisitorScan, hasVisitorRegisteredForEvent, getEventById, getLatestLogForVisitor, isReady]);
     
     if (status === 'processing') {
         return <div className="flex flex-col items-center justify-center min-h-[80vh]"><Spinner /><p className="mt-4 text-lg">Processing your scan...</p></div>;
@@ -1235,8 +1237,20 @@ const AdminDashboard: React.FC<{ onLogout: () => void; db: MockDb }> = ({ onLogo
     };
     
     const getBaseQRUrl = useCallback(() => {
-        // Use the current URL minus everything from the hash onwards to get the base application URL
-        return window.location.href.split('#')[0];
+        const origin = window.location.origin;
+        let pathname = window.location.pathname;
+        
+        // Remove trailing filenames like index.html if they exist to keep URLs clean
+        if (pathname.includes('.') && pathname.includes('/')) {
+            pathname = pathname.substring(0, pathname.lastIndexOf('/') + 1);
+        }
+        
+        // Ensure the base URL ends with a slash so the hash follows correctly
+        if (!pathname.endsWith('/')) {
+            pathname += '/';
+        }
+        
+        return `${origin}${pathname}`;
     }, []);
 
     const gateQRUrl = `${getBaseQRUrl()}#/gate?v=${gateQRKey}`;
