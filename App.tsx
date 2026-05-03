@@ -339,8 +339,8 @@ const ScanHandler: React.FC<{ mode: 'gate' | 'event' | 'intern'; db: MockDb }> =
             if (mode === 'intern') {
                 const queryParams = new URLSearchParams(location.search);
                 const ts = queryParams.get('ts');
-                // Increased to 60 seconds to allow for slow mobile page loads
-                if (!ts || Date.now() - parseInt(ts, 10) > 60000) { 
+                // Strict 7 second validity window for rotated QR codes (3s rotation + 4s buffer)
+                if (!ts || Date.now() - parseInt(ts, 10) > 7000) { 
                     setStatus('error');
                     setMessage('QR Code Expired');
                     setDetails('This QR code has expired for security reasons. Please ask the admin for the current code.');
@@ -990,7 +990,7 @@ const AdminDashboard: React.FC<{ onLogout: () => void; db: MockDb }> = ({ onLogo
         if (view === 'qr') {
             interval = window.setInterval(() => {
                 setInternQRTimestamp(Date.now());
-            }, 5000);
+            }, 3000); // Rotates every 3 seconds for security
         }
         return () => {
             if (interval) {
